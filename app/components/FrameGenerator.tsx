@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 interface FrameGeneratorProps {
   onFrameGenerated: (frameUrl: string) => void;
@@ -9,7 +9,8 @@ export default function FrameGenerator({
 }: FrameGeneratorProps) {
   const [selectedFrame, setSelectedFrame] = useState<string>("frame1");
   const [profilePic, setProfilePic] = useState<string | null>(null);
-  const [zoomLevel, setZoomLevel] = useState<number>(1); // 1 = 100%
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [frameSize, setFrameSize] = useState<number>(0.9); // 1 = 100%
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const frames = [
@@ -19,13 +20,19 @@ export default function FrameGenerator({
     { id: "frame4", name: "Vintage", thumbnail: "/frames/frame4-thumb.png" },
   ];
 
+  useEffect(() => {
+    if (profilePic) {
+      generateFrame();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profilePic, selectedFrame, zoomLevel, frameSize]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
         setProfilePic(event.target?.result as string);
-        // Reset zoom when new image is selected
         setZoomLevel(1);
       };
       reader.readAsDataURL(file);
@@ -34,75 +41,113 @@ export default function FrameGenerator({
 
   const handleZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setZoomLevel(parseFloat(e.target.value));
-    generateFrame();
   };
 
-  const generateFrame = () => {
+  const handleFrameSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFrameSize(parseFloat(e.target.value));
+  };
+
+  const prepareFrameImage = async (
+    frameImg: HTMLImageElement,
+    sizeMultiplier: number = 1
+  ): Promise<HTMLCanvasElement> => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("Could not get canvas context");
+
+    // Base canvas size
+    const baseSize = 512;
+    canvas.width = baseSize;
+    canvas.height = baseSize;
+
+    // Clear with transparent background
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Calculate scaling with size multiplier
+    const scale = Math.min(
+      (canvas.width / frameImg.width) * sizeMultiplier,
+      (canvas.height / frameImg.height) * sizeMultiplier
+    );
+    const width = frameImg.width * scale;
+    const height = frameImg.height * scale;
+    const x = (canvas.width - width) / 2;
+    const y = (canvas.height - height) / 2;
+
+    // Draw the frame centered
+    ctx.drawImage(frameImg, x, y, width, height);
+
+    return canvas;
+  };
+
+  const generateFrame = async () => {
     if (!profilePic) return;
 
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set canvas size
-    canvas.width = 500;
-    canvas.height = 500;
+    // Set canvas size to standard profile picture size
+    const canvasSize = 512;
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
 
     // Clear canvas with transparent background
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Load profile picture
     const profileImg = new Image();
-    profileImg.crossOrigin = "Anonymous";
     profileImg.src = profilePic;
 
-    profileImg.onload = () => {
-      // Create circular mask for profile pic
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(250, 250, 200, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
+    // Load frame image
+    const frameImg = new Image();
+    frameImg.src = `/frames/${selectedFrame}.png`;
 
-      // Calculate dimensions with zoom
-      const size = Math.min(profileImg.width, profileImg.height);
-      const canvasCenter = canvas.width / 2;
-      const baseSize = 400; // Base size before zoom
-      const zoomedSize = baseSize * zoomLevel;
+    // Wait for both images to load
+    await Promise.all([
+      new Promise((resolve) => {
+        profileImg.onload = resolve;
+      }),
+      new Promise((resolve) => {
+        frameImg.onload = resolve;
+      }),
+    ]);
 
-      // Calculate position to keep image centered
-      const destX = canvasCenter - zoomedSize / 2;
-      const destY = canvasCenter - zoomedSize / 2;
+    // Draw profile picture with circular mask
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(canvasSize / 2, canvasSize / 2, canvasSize / 2.5, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
 
-      // Draw profile pic with zoom
-      ctx.drawImage(
-        profileImg,
-        (profileImg.width - size) / 2,
-        (profileImg.height - size) / 2,
-        size,
-        size,
-        destX,
-        destY,
-        zoomedSize,
-        zoomedSize
-      );
+    // Calculate dimensions with zoom
+    const size = Math.min(profileImg.width, profileImg.height);
+    const centerX = (profileImg.width - size) / 2;
+    const centerY = (profileImg.height - size) / 2;
 
-      ctx.restore();
+    const profileSize = canvasSize * 0.8 * zoomLevel;
+    const profileX = (canvasSize - profileSize) / 2;
+    const profileY = (canvasSize - profileSize) / 2;
 
-      // Load frame
-      const frameImg = new Image();
-      frameImg.crossOrigin = "Anonymous";
-      frameImg.src = `/frames/${selectedFrame}.png`;
+    ctx.drawImage(
+      profileImg,
+      centerX,
+      centerY,
+      size,
+      size,
+      profileX,
+      profileY,
+      profileSize,
+      profileSize
+    );
+    ctx.restore();
 
-      frameImg.onload = () => {
-        // Draw frame on top
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+    // Prepare and draw the frame with size adjustment
+    const preparedFrame = await prepareFrameImage(frameImg, frameSize);
+    ctx.drawImage(preparedFrame, 0, 0);
 
-        // Convert to PNG
-        const frameUrl = canvas.toDataURL("image/png");
-        onFrameGenerated(frameUrl);
-      };
-    };
+    // Convert to PNG and callback
+    const frameUrl = canvas.toDataURL("image/png");
+    onFrameGenerated(frameUrl);
   };
 
   return (
@@ -150,24 +195,45 @@ export default function FrameGenerator({
       </div>
 
       {profilePic && (
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Zoom ({Math.round(zoomLevel * 100)}%)
-          </label>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500">50%</span>
-            <input
-              type="range"
-              min="0.5"
-              max="2"
-              step="0.1"
-              value={zoomLevel}
-              onChange={handleZoomChange}
-              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-            <span className="text-xs text-gray-500">200%</span>
+        <>
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Profile Zoom ({Math.round(zoomLevel * 100)}%)
+            </label>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500">50%</span>
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={zoomLevel}
+                onChange={handleZoomChange}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <span className="text-xs text-gray-500">200%</span>
+            </div>
           </div>
-        </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Frame Size ({Math.round(frameSize * 100)}%)
+            </label>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500">50%</span>
+              <input
+                type="range"
+                min="0.5"
+                max="1.5"
+                step="0.1"
+                value={frameSize}
+                onChange={handleFrameSizeChange}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <span className="text-xs text-gray-500">150%</span>
+            </div>
+          </div>
+        </>
       )}
 
       <div className="mb-6">
@@ -195,25 +261,13 @@ export default function FrameGenerator({
                   className="max-h-full max-w-full object-contain"
                 />
               </div>
-              <p className="text-center mt-1 text-sm font-medium">
+              <p className="text-center text-gray-900 mt-1 text-sm font-medium">
                 {frame.name}
               </p>
             </button>
           ))}
         </div>
       </div>
-
-      <button
-        onClick={generateFrame}
-        disabled={!profilePic}
-        className={`w-full py-2 px-4 rounded-lg font-medium transition ${
-          profilePic
-            ? "bg-purple-600 hover:bg-purple-700 text-white"
-            : "bg-gray-200 text-gray-500 cursor-not-allowed"
-        }`}
-      >
-        Generate Frame
-      </button>
     </div>
   );
 }
