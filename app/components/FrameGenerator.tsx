@@ -15,9 +15,9 @@ export default function FrameGenerator({
 
   const frames = [
     { id: "frame1", name: "Classic", thumbnail: "/frames/frame1-thumb.png" },
-    { id: "frame2", name: "Floral", thumbnail: "/frames/frame2-thumb.png" },
-    { id: "frame3", name: "Modern", thumbnail: "/frames/frame3-thumb.png" },
-    { id: "frame4", name: "Vintage", thumbnail: "/frames/frame4-thumb.png" },
+    // { id: "frame2", name: "Floral", thumbnail: "/frames/frame2-thumb.png" },
+    // { id: "frame3", name: "Modern", thumbnail: "/frames/frame3-thumb.png" },
+    // { id: "frame4", name: "Vintage", thumbnail: "/frames/frame4-thumb.png" },
   ];
 
   useEffect(() => {
