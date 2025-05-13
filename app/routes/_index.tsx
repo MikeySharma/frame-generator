@@ -5,8 +5,8 @@ import FramePreview from "~/components/FramePreview";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "Frame Generator" },
-    { name: "description", content: "A simple frame generator using Remix." },
+    { title: "MAA Convention Frame Generator" },
+    { name: "description", content: "A simple MAA Convention Frame Generator" },
     { name: "viewport", content: "width=device-width, initial-scale=1" },
   ];
 };
@@ -30,7 +30,7 @@ export default function Index() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-purple-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold text-center text-purple-800 mb-2">
-          Profile Frame Generator
+          MAA Convention Frame Generator
         </h1>
         <p className="text-center text-gray-600 mb-12">
           Create beautiful frames for your profile pictures
